@@ -1,0 +1,27 @@
+{
+  "name": "browser_mcu_server",
+  "version": "1.0.0",
+  "description": "WebRTC Signaling Server and MCU using headless browser",
+  "main": "single_server.js",
+  "scripts": {
+    "start": "node single_server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mganeko/browser_mcu_server.git"
+  },
+  "keywords": [
+    "WebRTC"
+  ],
+  "author": "mganeko",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mganeko/browser_mcu_server/issues"
+  },
+  "homepage": "https://github.com/mganeko/browser_mcu_server#readme",
+  "dependencies": {
+    "express": "^4.15.3",
+    "ws": "^3.0.0"
+  }
+}
