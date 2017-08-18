@@ -1,0 +1,3 @@
+[submodule "public_single/core"]
+	path = public_single/core
+	url = https://github.com/mganeko/browser_mcu_core.git
