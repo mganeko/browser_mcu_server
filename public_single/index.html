@@ -3,14 +3,15 @@
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <title>mcu meeting</title>
- <!--
+  <!--
     // Browser MCU sample server
     //   https://github.com/mganeko/browser_mcu_server
     //   browser_mcu_server is provided under MIT license
     //
     //   This sample is using https://github.com/mganeko/browser_mcu_core
     //
- -->
+  -->
+  <script src="js/pc_config.js"></script>
 </head>
 <body>
   browser_mcu meeting member with websocket<br />
@@ -401,7 +402,8 @@
 
   // ---------------------- connection handling -----------------------
   function prepareNewConnection() {
-    let pc_config = {"iceServers":[]};
+    //let pc_config = {"iceServers":[]};
+    let pc_config = _PeerConnectionConfig;
     let peer = new RTCPeerConnection(pc_config);
     // --- on get remote stream ---
     if ('ontrack' in peer) {

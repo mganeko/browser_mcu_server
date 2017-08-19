@@ -3,15 +3,16 @@
 <head>
  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
  <title>Single Room MCU</title>
- <!--
+  <!--
     // Browser MCU sample server
     //   https://github.com/mganeko/browser_mcu_server
     //   browser_mcu_server is provided under MIT license
     //
     //   This sample is using https://github.com/mganeko/browser_mcu_core
     //
- -->
- <script src="core/js/browser_mcu_core.js"></script>
+  -->
+  <script src="core/js/browser_mcu_core.js"></script>
+  <script src="js/pc_config.js"></script>
 </head>
 <body>
   browser_mcu meeting with websocket<br />
@@ -149,90 +150,6 @@
     console.log('ws onmessage() data:', evt.data);
     const message = JSON.parse(evt.data);
     handleMessage(message);
-
-    /*----
-    const fromId = message.from;
-
-    if (message.type === 'call') {
-      if (isConnected(fromId)) {
-        console.warn('ALREADY connecte, so ignore call');
-        return;
-      }
-
-      sendJson(fromId, { type: 'response'} );
-    }
-    else if (message.type === 'response') {
-      console.warn('got response, BUT MUST NOT recevie response.');
-      return;
-
-      //// --- start offer ----
-      //peerPartnerId = fromId;
-      //makeOffer();
-    }
-    else if (message.type === 'offer') {
-      // -- got offer ---
-      console.log('Received offer ...');
-      //if (from !== peerPartnerId) {
-      //  console.warn('Offer from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
-      //  return;
-      //}
-
-      const offer = new RTCSessionDescription(message);
-      setOffer(fromId, offer);
-    }
-    else if (message.type === 'answer') {
-      console.warn('got answer, BUT MUST NOT recevie answer.');
-      return;
-
-      //
-      //// --- got answer ---
-      //console.log('Received answer ...');
-      //if (from !== peerPartnerId) {
-      //  console.warn('Anser from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
-      //  return;
-      //}
-      //
-      //const answer = new RTCSessionDescription(message);
-      //setAnswer(answer);
-      //
-    }
-    else if (message.type === 'candidate') {
-      // --- got ICE candidate ---
-      console.log('Received ICE candidate ...');
-      //
-      //if (from !== peerPartnerId) {
-      //  console.warn('ICE candidate from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
-      //  return;
-      //}
-      //
-      if (! isConnected(fromId)) {
-        console.error('NOT Connected to id:' + fromId);
-        return;
-      }
-
-      let candidate = new RTCIceCandidate(message.ice);
-      console.log(candidate);
-      addIceCandidate(fromId, candidate);
-    }
-    else if (message.type === 'bye') {
-      console.log('-- remote peer disconnecting. id:' + fromId);
-      if (! isConnected(fromId)) {
-        console.error('NOT Connected to id:' + fromId);
-        return;
-      }
-
-      dissconnectOne(fromId);
-    }
-    else if (message.type === 'client_disconnect') {
-      console.log('-- remote peer disconnected. id:' + fromId);
-      if (! isConnected(fromId)) {
-        console.error('NOT Connected to id:' + fromId);
-        return;
-      }
-
-      dissconnectOne(fromId);
-    }
-    ------------*/
   };
 
 
@@ -448,7 +365,8 @@
 
   // ---------------------- connection handling -----------------------
   function prepareNewConnection(id) {
-    let pc_config = {"iceServers":[]};
+    //let pc_config = {"iceServers":[]};
+    let pc_config = _PeerConnectionConfig;
     let peer = new RTCPeerConnection(pc_config);
     // --- on get remote stream ---
     if ('ontrack' in peer) {
