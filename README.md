@@ -27,7 +27,7 @@
 #### Install / インストール
 
 ```
-git clone https://github.com/mganeko/browser_mcu_server.git
+git clone --recursive https://github.com/mganeko/browser_mcu_server.git
 npm install
 ```
 
@@ -39,6 +39,7 @@ Copy default options and edit it / デフォルトのオプション指定をコ
 cp options_default.js options.js
 vi options.js
 ```
+
 * serverOptions
   * listenPort ... port for http(s) and ws(s)
   * hostName ... hostname  (ex) server.domain.com
