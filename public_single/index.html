@@ -624,8 +624,13 @@
   
   // close PeerConnection
   function disconnect() {
-    broadcastJson({type: "bye"});
-    
+    if (peerPartnerId) {
+      sendJson({type: "bye"});
+    }
+    else {
+      broadcastJson({type: "bye"});
+    }
+
     if (peerConnection) {
       console.log('Hang up.');
       peerConnection.close();
