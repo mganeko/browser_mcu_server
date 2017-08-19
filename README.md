@@ -50,6 +50,10 @@ vi options.js
   * autoStartHeadless ... flag to start MCU as headless browser (true / false)
   * headlessFullpath ... path to Chrome (v59 or later)
 
+#### STUN, TURN settings / STUN, TURN の設定
+
+* edit public_single/js/pc_config.js for SUTN/TURN servers
+* public_single/js/pc_config.js を編集してSUTN/TURNサバーの情報を指定してください
 
 ## Usage / 利用方法
 
