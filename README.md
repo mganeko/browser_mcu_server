@@ -52,8 +52,8 @@ vi options.js
 
 #### STUN, TURN settings / STUN, TURN の設定
 
-* edit public_single/js/pc_config.js for SUTN/TURN servers
-* public_single/js/pc_config.js を編集してSUTN/TURNサバーの情報を指定してください
+* edit public_single/js/pc_config.js for STUN/TURN servers
+* public_single/js/pc_config.js を編集してSTUN/TURNサバーの情報を指定してください
 
 ## Usage / 利用方法
 
