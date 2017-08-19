@@ -3,15 +3,25 @@
 module.exports =
 {
   serverOptions: {
-    listenPort : 3000,
-    hostName : 'localhost',
+    // --- port and host name ---
+    listenPort : 3000,  // for http(s) and ws(s)
+    hostName : 'localhost', // ex) server.domain.com
+
+    // --- for using HTTPS ---
     useHttps : false,
     httpsKeyFile: 'cert/server.key',
     httpsCertFile: 'cert/server.crt',
+
     dummyTail : false
   },
+  
   mcuOptions : {
+    // -- auto start switch for (headless) Browser MCU --
+    //   true:  server process will start browser
+    //   false: please start Browser MCU manually
     autoStartHeadless : true,
+
+    // ---- auto start conditions ----
     headlessFullpath: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome', // for MacOS X
     //headlessFullpath: '/usr/bin/chromium-browser', // for ubuntu + chromium
     //headlessFullpath: '/usr/bin/google-chrome-stable', // for ubuntu + chrome
