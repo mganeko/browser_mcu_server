@@ -13,6 +13,7 @@
   -->
   <script src="core/js/browser_mcu_core.js"></script>
   <script src="js/pc_config.js"></script>
+  <script src="js/mcu_peer.js"></script>
 </head>
 <body>
   browser_mcu meeting with websocket<br />
@@ -27,12 +28,12 @@
   <div id="remote_container"></div>
 </body>
 <script type="text/javascript">
-  const useTrickleICE = true;
+  // MOVED: const useTrickleICE = true;
 
   let canvasMix = document.getElementById('canvas_mix');
   let remoteContainer = document.getElementById('remote_container');
   let stateSpan = document.getElementById('state_span');
-  let Connections = [];
+  // MOVED: let Connections = [];
 
   let mcu = new BrowserMCU();
   function initMcu() {
@@ -62,7 +63,7 @@
   // [ mcu shutdown ]
   //  bye <---
 
-
+  /* --- MOVED ---
   // -- mcu connection management ---
   // 
   //
@@ -130,6 +131,7 @@
   function getConnectionCount() {
     return  Object.keys(Connections).length;
   }
+  --- MOVED --- */
 
   // -------- websocket ----  
   let wsProtocol = 'ws://';
@@ -363,6 +365,7 @@
     ws.send(message);
   }
 
+  /* --- MOVED ---
   // ---------------------- connection handling -----------------------
   function prepareNewConnection(id) {
     //let pc_config = {"iceServers":[]};
@@ -523,55 +526,6 @@
     });
   }
 
-  /*--
-  function setAnswer(sessionDescription) {
-    if (! peerConnection) {
-      console.error('peerConnection NOT exist!');
-      return;
-    }
-
-    peerConnection.setRemoteDescription(sessionDescription)
-    .then(function() {
-      console.log('setRemoteDescription(offer) succsess in promise');
-    }).catch(function(err) {
-      console.error('setRemoteDescription(offer) ERROR: ', err);
-    });
-  }
-  --*/
-
-  /*--
-  function makeOffer() {
-    console.log('sending Offer. Creating session description...' );
-    if (peerConnection) {
-      console.log('peerConnection alreay exist, reuse it');
-    }
-    else {
-      console.log('prepare new PeerConnection');
-      peerConnection = prepareNewConnection();
-    }
-
-    peerConnection.createOffer()
-    .then(function (sessionDescription) {
-      console.log('createOffer() succsess in promise');
-      return peerConnection.setLocalDescription(sessionDescription);
-    }).then(function() {
-      console.log('setLocalDescription() succsess in promise');
-      if (useTrickleICE) {
-        // -- Trickle ICE の場合は、初期SDPを相手に送る --
-        // send initial SDP when using Trickle ICE
-        sendSdp(peerConnection.localDescription);
-      }
-      else {
-        // -- Vanilla ICE の場合には、まだSDPは送らない --
-        // wait for ICE candidates for Vanilla ICE
-        //sendSdp(peerConnection.localDescription);
-      }
-    }).catch(function(err) {
-      console.error(err);
-    });
-  }
-  --*/
-
   function makeAnswer(id) {
     console.log('sending Answer. Creating session description...' );
     let peerConnection = getConnection(id);
@@ -611,6 +565,8 @@
       return;
     }
   }
+  --- MOVED --- */
+
   
   // start PeerConnection
   function connect() {
