@@ -4,13 +4,13 @@
 * Browser MCU Server is using [Browser MCU Core](https://github.com/mganeko/browser_mcu_core) library 
 * Browser MCU Server is simple example of multi participants meeting with single room
 * Browser MCU Server is using node.js, express and ws
-* Browser MCU Server is a part of Browser MCU Series
+* Browser MCU Server is a part of [Browser MCU Series](https://github.com/mganeko/browser_mcu)
 * --
 * Browser MCU Server はブラウザの映像/音声処理を活用した、WebRTC用MCUのためのWeb/シグナリングサーバーです
 * Browser MCU Server は[Browser MCU Core](https://github.com/mganeko/browser_mcu_core) ライブラリを利用しています
 * Browser MCU Server は複数参加者、1ルームの会議のサンプルです
 * Browser MCU Server は node.js, express, ws を利用しています
-* Browser MCU Server は Browser MCU シリーズの一部です
+* Browser MCU Server は [Browser MCU シリーズ](https://github.com/mganeko/browser_mcu)の一部です
 
 ## Confirmed Environment / 動作確認環境
 
