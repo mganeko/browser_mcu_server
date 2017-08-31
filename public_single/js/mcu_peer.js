@@ -297,3 +297,26 @@ let Connections = [];
 
     return sdpNew;
   }
+
+  // ---- send signaling info ----
+  let _sendJsonFunc = null;
+  
+  function setSendJsonFunc(func) {
+    _sendJsonFunc = func;
+  }
+
+  function sendSdp(id, sessionDescription) {
+    console.log('---sending sdp ---');
+    const jsonSDP = sessionDescription.toJSON();
+    console.log('sending to:' + id + '  SDP:', jsonSDP);
+
+    //sendJson(id, jsonSDP);
+    _sendJsonFunc(id, jsonSDP);
+  }
+
+  function sendIceCandidate(id, candidate) {
+    console.log('---sending ICE candidate ---');
+    const obj = { type: 'candidate', ice: candidate };
+    //sendJson(id, obj);
+    _sendJsonFunc(id, obj);
+  }

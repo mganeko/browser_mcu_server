@@ -331,7 +331,7 @@
     sendJson(jsonSDP);
   }
   */
-
+  /* --- MOVED --- 
   function sendSdp(id, sessionDescription) {
     console.log('---sending sdp ---');
     const jsonSDP = sessionDescription.toJSON();
@@ -345,6 +345,7 @@
     const obj = { type: 'candidate', ice: candidate };
     sendJson(id, obj);
   }
+  --- MOVED --- */
 
   function sendJson(id, json) {
     // -- socket.io --
@@ -728,6 +729,8 @@
   initMcu();
   // NOT start yet //mcu.startMix();
 
+  setSendJsonFunc(sendJson);
+  
   // ---- auto connect ---
   //if (isAutoConnect()) {
   //}
