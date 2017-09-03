@@ -42,6 +42,12 @@
       mcu.setAudioMode(BrowserMCU.AUDIO_MODE_MINUS_ONE);
   }
 
+  // --- setup peer manage functions ---
+  setMCU(mcu);
+  setDisconnectOneFunc(disconnectOne);
+  setUpdateUIFunc(updateButtons);
+  setSendJsonFunc(sendJson);
+
   // --- prefix -----
   //navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
   //                          navigator.mozGetUserMedia || navigator.msGetUserMedia;
@@ -226,7 +232,7 @@
         return;
       }
 
-      dissconnectOne(fromId);
+      disconnectOne(fromId);
     }
     else if (message.type === 'client_disconnect') {
       console.log('-- remote peer disconnected. id:' + fromId);
@@ -235,7 +241,7 @@
         return;
       }
 
-      dissconnectOne(fromId);
+      disconnectOne(fromId);
     }
   };
 
@@ -453,7 +459,7 @@
         console.log('-- failed, so give up --');
 
         console.log('dissconect only this peer id:' + id);
-        dissconnectOne(id);
+        disconnectOne(id);
       }
     };
     peer.onicegatheringstatechange = function() {
@@ -618,7 +624,7 @@
     updateButtons();
   }
 
-  function dissconnectOne(peerid) {
+  function disconnectOne(peerid) {
     // -- remove Video --
     let stream = getRemoteStream(peerid);
     mcu.removeRemoteVideo(stream);
@@ -729,8 +735,8 @@
   initMcu();
   // NOT start yet //mcu.startMix();
 
-  setSendJsonFunc(sendJson);
-  
+  //setSendJsonFunc(sendJson);
+
   // ---- auto connect ---
   //if (isAutoConnect()) {
   //}

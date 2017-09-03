@@ -3,15 +3,63 @@
 //
 //  Browser MCU Server/Service
 
+// DONE:  invert dependence
+//  DONE: mcu.xx()
+//  DONE: disconnectOne()
+//  DONE: updateButtons()
+//  DONE: showState()
+//  DONE: logStream()
+
 const useTrickleICE = true;
-let Connections = [];
+let _Connections = [];
+let _mcuObject = null; // object of MCU Core
+let _disconnectOneFunc = null; // function to handle ice disconnect event
+let _updateUIFunc = null; // update UI callback
+
+  // --- outer objenct and functions ---
+  function setMCU(mcu) {
+    _mcuObject = mcu;
+  }
+
+  function setDisconnectOneFunc(func) {
+    _disconnectOneFunc = func;
+  }
+
+  function setUpdateUIFunc(func) {
+    _updateUIFunc = func;
+  }
+
+  // --- log state
+  function logState(text) {
+    console.log(text);
+  }
+
+  function logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+
+    let videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+    console.log('videoTracks.length=' + videoTracks.length);
+    videoTracks.forEach(function(track) {
+      console.log(' track.id=' + track.id);
+    });
+    }
+    
+    let audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+    console.log('audioTracks.length=' + audioTracks.length);
+    audioTracks.forEach(function(track) {
+      console.log(' track.id=' + track.id);
+    });
+    }
+  }
 
   // -- mcu connection management ---
   // 
   //
 
   function getConnection(id) {
-    let peer = Connections[id];
+    let peer = _Connections[id];
     if (! peer) {
       console.warn('Peer not exist for id:' + id);
     }
@@ -19,7 +67,7 @@ let Connections = [];
   }
 
   function isConnected(id) {
-    const peer = Connections[id];
+    const peer = _Connections[id];
     if (peer) {
       return true;
     }
@@ -34,7 +82,7 @@ let Connections = [];
       return;
     }
 
-    Connections[id] = peer;
+    _Connections[id] = peer;
   }
 
   function removeConection(id) {
@@ -43,10 +91,10 @@ let Connections = [];
       return;
     }
 
-    let peer = Connections[id];
+    let peer = _Connections[id];
     peer.close();
     peer = null;
-    delete Connections[id];
+    delete _Connections[id];
   }
 
   function getRemoteStream(id) {
@@ -61,17 +109,17 @@ let Connections = [];
     }
   }
 
-  function closeAllConnections() {
-    for (let id in Connections) {
-      let peer = Connections[id];
+  function closeAll_Connections() {
+    for (let id in _Connections) {
+      let peer = _Connections[id];
       peer.close();
       peer = null;
-      delete Connections[id];
+      delete _Connections[id];
     }
   }
 
   function getConnectionCount() {
-    return  Object.keys(Connections).length;
+    return  Object.keys(_Connections).length;
   }
 
   // ---------------------- connection handling -----------------------
@@ -86,10 +134,10 @@ let Connections = [];
         let stream = event.streams[0];
         logStream('remotestream of ontrack()', stream);
         if (event.track.kind === "video") {
-          mcu.addRemoteVideo(stream);
+          _mcuObject.addRemoteVideo(stream);
         }
         else if (event.track.kind === "audio") {
-          mcu.addRemoteAudioMinusOne(id, stream);
+          _mcuObject.addRemoteAudioMinusOne(id, stream);
         }
         else {
           console.warn('UNKNOWN track kind:' + event.track.kind);
@@ -104,10 +152,10 @@ let Connections = [];
         
         if (stream.getVideoTracks().length > 0) {
           console.log('adding remote video');
-          mcu.addRemoteVideo(stream);
+          _mcuObject.addRemoteVideo(stream);
         }
         if (stream.getAudioTracks().length > 0) {
-          mcu.addRemoteAudioMinusOne(id, stream);
+          _mcuObject.addRemoteAudioMinusOne(id, stream);
           console.log('adding remote audio minus-one');
         }
       };
@@ -152,7 +200,8 @@ let Connections = [];
     };
     peer.oniceconnectionstatechange = function() {
       console.log('== ice connection state=' + peer.iceConnectionState);
-      showState('ice connection state=' + peer.iceConnectionState);
+      //showState('ice connection state=' + peer.iceConnectionState);
+      logState('ice connection state=' + peer.iceConnectionState);
       if (peer.iceConnectionState === 'disconnected') {
         console.log('-- disconnected, but wait for re-connect --');
       }
@@ -160,7 +209,9 @@ let Connections = [];
         console.log('-- failed, so give up --');
 
         console.log('dissconect only this peer id:' + id);
-        dissconnectOne(id);
+        if (_disconnectOneFunc) {
+          _disconnectOneFunc(id);
+        }
       }
     };
     peer.onicegatheringstatechange = function() {
@@ -173,14 +224,14 @@ let Connections = [];
     peer.onremovestream = function(event) {
       console.log('-- peer.onremovestream()');
       let stream = event.stream;
-      removeRemoteVideo(stream.id, stream);
+      //removeRemoteVideo(stream.id, stream); // NOT NEED
 
       if (stream.getVideoTracks().length > 0) {
         console.log('removing remote video');
-        mcu.removeRemoteVideo(stream);
+        _mcuObject.removeRemoteVideo(stream);
       }
       if (stream.getAudioTracks().length > 0) {
-        mcu.removeRemoteAudioMinusOne(id, stream);
+        _mcuObject.removeRemoteAudioMinusOne(id, stream);
         console.log('removing remote audio minus-one');
       }
     };
@@ -188,11 +239,11 @@ let Connections = [];
     // -- start mix, if this is first connection ---
     if (getConnectionCount() === 0) {
       console.log('--- start mix ----');
-      mcu.startMix();
+      _mcuObject.startMix();
     }
 
     // -- add mixed stream with minus one audio --
-    let stream = mcu.prepareMinusOneStream(id);
+    let stream = _mcuObject.prepareMinusOneStream(id);
     if (stream) {
       console.log('Adding mix stream...');
       if ('addTrack' in peer) {
@@ -211,8 +262,10 @@ let Connections = [];
       console.error('NO mix stream, but continue.');
     }
 
-    addConnection(id, peer);
-    updateButtons();
+    // MOVED to caller: addConnection(id, peer);
+    if (_updateUIFunc) {
+      _updateUIFunc();
+    }
     return peer;
   }
 
@@ -224,6 +277,7 @@ let Connections = [];
     else {
       console.log('prepare new PeerConnection');
       peerConnection = prepareNewConnection(id);
+      addConnection(id, peerConnection);
     }
     peerConnection.setRemoteDescription(sessionDescription)
     .then(function() {
@@ -263,7 +317,7 @@ let Connections = [];
       else {
         // -- Vanilla ICE の場合には、まだSDPは送らない --
         // wait for ICE candidates for Vanilla ICE
-        //sendSdp(peerConnection.localDescription);
+        //sendSdp(id, peerConnection.localDescription);
       }
     }).catch(function(err) {
       console.error(err);
@@ -300,7 +354,7 @@ let Connections = [];
 
   // ---- send signaling info ----
   let _sendJsonFunc = null;
-  
+
   function setSendJsonFunc(func) {
     _sendJsonFunc = func;
   }
