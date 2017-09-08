@@ -119,6 +119,9 @@ let _updateUIFunc = null; // update UI callback
   }
 
   function getConnectionCount() {
+    //let l1 = _Connections.length;
+    //let l2 = Object.keys(_Connections).length;
+    //console.log('getConnectionCount() l1=' + l1 + '  l2=' + l2 );
     return  Object.keys(_Connections).length;
   }
 
@@ -263,9 +266,9 @@ let _updateUIFunc = null; // update UI callback
     }
 
     // MOVED to caller: addConnection(id, peer);
-    if (_updateUIFunc) {
-      _updateUIFunc();
-    }
+    //if (_updateUIFunc) {
+    //  _updateUIFunc();
+    //}
     return peer;
   }
 
@@ -278,6 +281,9 @@ let _updateUIFunc = null; // update UI callback
       console.log('prepare new PeerConnection');
       peerConnection = prepareNewConnection(id);
       addConnection(id, peerConnection);
+      if (_updateUIFunc) {
+        _updateUIFunc();
+      }
     }
     peerConnection.setRemoteDescription(sessionDescription)
     .then(function() {
