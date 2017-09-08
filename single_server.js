@@ -211,10 +211,19 @@ function buildURL(channel) {
   return url;
 }
 
+/*
 function buildArgs(url) {
   let args = mcuOptions.headlessArgs;
   args.push(url);
   //console.log(args);
+  return args;
+}
+*/
+
+function buildArgs(url) {
+  let args = [].concat(mcuOptions.headlessArgs);
+  args.push(url);
+  console.log(args);
   return args;
 }
 
