@@ -109,7 +109,7 @@ let _updateUIFunc = null; // update UI callback
     }
   }
 
-  function closeAll_Connections() {
+  function closeAllConnections() {
     for (let id in _Connections) {
       let peer = _Connections[id];
       peer.close();
