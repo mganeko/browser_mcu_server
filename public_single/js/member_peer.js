@@ -1,28 +1,63 @@
-// mcu_peer.js
-//  handling PeerConnections for MCU
+// member_peer.js
+//  handling PeerConnections for MCU Members
 //
 //  Browser MCU Server/Service
 
-// DONE:  invert dependence
-//  DONE: mcu.xx()
-//  DONE: disconnectOne()
+// reduce invert dependence
+//  DONE: sendSDP()
+//  DONE: sendIceCandidate()
 //  DONE: updateButtons()
-//  DONE: showState()
 //  DONE: logStream()
+//  DONE: showState()
+//  DONE: disconnect()
+
+//  DONE: addRemoteVideo()
+//  DONE: removeRemoteVideo()
+
+
+
 
 const useTrickleICE = true;
-let _Connections = [];
-let _mcuObject = null; // object of MCU Core
-let _disconnectOneFunc = null; // function to handle ice disconnect event
+let _localStream = null;
+let _peerConnection = null;
+
+let _addRemoteVideoFunc = null;
+let _removeRemoteVideoFunc = null;
+let _disconnectFunc = null; // function to handle ice disconnect event
 let _updateUIFunc = null; // update UI callback
 
   // --- outer objenct and functions ---
-  function setMCU(mcu) {
-    _mcuObject = mcu;
+  function setLocalStream(stream) {
+    _localStream = stream;
   }
 
-  function setDisconnectOneFunc(func) {
-    _disconnectOneFunc = func;
+  function getLocalStream() {
+    return _localStream
+  }
+
+  function setPeerConnection(peer) {
+    _peerConnection = peer;
+  }
+
+  function getPeerConnection() {
+    return _peerConnection;
+  }
+
+  function setRemoteVideoFunc(addFunc, removeFunc) {
+    _addRemoteVideoFunc = addFunc;
+    _removeRemoteVideoFunc = removeFunc;
+  }
+
+  //function setAddRemoteVideoFunc(func) {
+  //  _addRemoteVideoFunc = func;
+  //}
+
+  //function setRemoveRemoteVideoFunc(func) {
+  //  _removeRemoteVideoFunc = func;
+  //}
+
+  function setDisconnectFunc(func) {
+    _disconnectFunc = func;
   }
 
   function setUpdateUIFunc(func) {
@@ -34,7 +69,7 @@ let _updateUIFunc = null; // update UI callback
     console.log(text);
   }
 
-  function logStream(msg, stream) {
+  function _logStream(msg, stream) {
     console.log(msg + ': id=' + stream.id);
 
     let videoTracks = stream.getVideoTracks();
@@ -54,80 +89,24 @@ let _updateUIFunc = null; // update UI callback
     }
   }
 
-  // -- mcu connection management ---
-  // 
-  //
+  // ----- band width -----
+  // for chrome
+  //audioBandwidth = 50; // kbps
+  //videoBandwidth = 256; // kbps
+  function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
+    let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
+    sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
 
-  function getConnection(id) {
-    let peer = _Connections[id];
-    if (! peer) {
-      console.warn('Peer not exist for id:' + id);
-    }
-    return peer;
-  }
+    //// -- trial for firefox, but not work between chrome - firefox --
+    //let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n' + 'b=TIAS:' + audioBandwidth*1000 + '\r\n');
+    //sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n' + 'b=TIAS:' + videoBandwidth*1000 + '\r\n');
+    //// -- trial for firefox, but not work between chrome - firefox --
 
-  function isConnected(id) {
-    const peer = _Connections[id];
-    if (peer) {
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
-
-  function addConnection(id, peer) {
-    if (isConnected(id)) {
-      console.error('ALREADY CONNECTED to id:' + id);
-      return;
-    }
-
-    _Connections[id] = peer;
-  }
-
-  function removeConection(id) {
-    if (! isConnected(id)) {
-      console.warn('NOT CONNECTED to id:' + id);
-      return;
-    }
-
-    let peer = _Connections[id];
-    peer.close();
-    peer = null;
-    delete _Connections[id];
-  }
-
-  function getRemoteStream(id) {
-    let peer = getConnection(id);
-    if (peer) {
-      let stream = peer.getRemoteStreams()[0];
-      return stream;
-    }
-    else {
-      console.warn('NOT CONNECTED to id:' + id);
-      return null;
-    }
-  }
-
-  function closeAllConnections() {
-    for (let id in _Connections) {
-      let peer = _Connections[id];
-      peer.close();
-      peer = null;
-      delete _Connections[id];
-    }
-  }
-
-  function getConnectionCount() {
-    //let l1 = _Connections.length;
-    //let l2 = Object.keys(_Connections).length;
-    //console.log('getConnectionCount() l1=' + l1 + '  l2=' + l2 );
-    return  Object.keys(_Connections).length;
+    return sdpNew;
   }
 
   // ---------------------- connection handling -----------------------
-  function prepareNewConnection(id) {
-    //let pc_config = {"iceServers":[]};
+  function prepareNewConnection() {
     let pc_config = _PeerConnectionConfig;
     let peer = new RTCPeerConnection(pc_config);
     // --- on get remote stream ---
@@ -135,32 +114,20 @@ let _updateUIFunc = null; // update UI callback
       peer.ontrack = function(event) {
         console.log('-- peer.ontrack()');
         let stream = event.streams[0];
-        logStream('remotestream of ontrack()', stream);
-        if (event.track.kind === "video") {
-          _mcuObject.addRemoteVideo(stream);
+        _logStream('remotestream of ontrack()', stream);
+        if ( (stream.getVideoTracks().length > 0) && (stream.getAudioTracks().length > 0) ) {
+          _addRemoteVideoFunc(stream.id, stream);
         }
-        else if (event.track.kind === "audio") {
-          _mcuObject.addRemoteAudioMinusOne(id, stream);
-        }
-        else {
-          console.warn('UNKNOWN track kind:' + event.track.kind);
-        }
+        
       };
     }
     else {
       peer.onaddstream = function(event) {
         console.log('-- peer.onaddstream()');
         let stream = event.stream;
-        logStream('remotestream of onaddstream()', stream);
+        _logStream('remotestream of onaddstream()', stream);
         
-        if (stream.getVideoTracks().length > 0) {
-          console.log('adding remote video');
-          _mcuObject.addRemoteVideo(stream);
-        }
-        if (stream.getAudioTracks().length > 0) {
-          _mcuObject.addRemoteAudioMinusOne(id, stream);
-          console.log('adding remote audio minus-one');
-        }
+        _addRemoteVideoFunc(stream.id, stream);
       };
     }
     // --- on get local ICE candidate
@@ -170,7 +137,7 @@ let _updateUIFunc = null; // update UI callback
         if (useTrickleICE) {
           // Trickle ICE の場合は、ICE candidateを相手に送る
           // send ICE candidate when using Trickle ICE
-          sendIceCandidate(id, evt.candidate);
+          sendIceCandidate(evt.candidate);
         }
         else {
           // Vanilla ICE の場合には、何もしない
@@ -185,14 +152,14 @@ let _updateUIFunc = null; // update UI callback
         else {
           // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
           // send SDP with ICE candidtes when using Vanilla ICE
-          sendSdp(id, peer.localDescription);
+          sendSdp(peer.localDescription);
         }
       }
     };
     // --- when need to exchange SDP ---
     peer.onnegotiationneeded = function(evt) {
       console.log('-- onnegotiationneeded() ---');
-      console.warn('--- NOT SUPPORTED YET, IGNORE ---');
+      console.warn('--- IGNORE ---');
     };
     // --- other events ----
     peer.onicecandidateerror = function (evt) {
@@ -210,10 +177,8 @@ let _updateUIFunc = null; // update UI callback
       }
       else if (peer.iceConnectionState === 'failed') {
         console.log('-- failed, so give up --');
-
-        console.log('dissconect only this peer id:' + id);
-        if (_disconnectOneFunc) {
-          _disconnectOneFunc(id);
+        if (_disconnectFunc) {
+          _disconnectFunc();
         }
       }
     };
@@ -227,76 +192,117 @@ let _updateUIFunc = null; // update UI callback
     peer.onremovestream = function(event) {
       console.log('-- peer.onremovestream()');
       let stream = event.stream;
-      //removeRemoteVideo(stream.id, stream); // NOT NEED
-
-      if (stream.getVideoTracks().length > 0) {
-        console.log('removing remote video');
-        _mcuObject.removeRemoteVideo(stream);
-      }
-      if (stream.getAudioTracks().length > 0) {
-        _mcuObject.removeRemoteAudioMinusOne(id, stream);
-        console.log('removing remote audio minus-one');
-      }
+      _removeRemoteVideoFunc(stream.id, stream);
     };
-
-    // -- start mix, if this is first connection ---
-    if (getConnectionCount() === 0) {
-      console.log('--- start mix ----');
-      _mcuObject.startMix();
-    }
-
-    // -- add mixed stream with minus one audio --
-    let stream = _mcuObject.prepareMinusOneStream(id);
-    if (stream) {
-      console.log('Adding mix stream...');
+    
+    
+    // -- add local stream --
+    let localStream = getLocalStream();
+    if (localStream) {
+      console.log('Adding local stream...');
       if ('addTrack' in peer) {
         console.log('use addTrack()');
-        let tracks = stream.getTracks();
+        let tracks = localStream.getTracks();
         for (let track of tracks) {
-          let sender = peer.addTrack(track, stream);
+          let sender = peer.addTrack(track, localStream);
         }
       }
       else {
         console.log('use addStream()');
-        peer.addStream(stream);
+        peer.addStream(localStream);
       }
     }
     else {
-      console.error('NO mix stream, but continue.');
+      console.warn('no local stream, but continue.');
     }
-
-    // MOVED to caller: addConnection(id, peer);
-    //if (_updateUIFunc) {
-    //  _updateUIFunc();
-    //}
     return peer;
   }
 
-  function setOffer(id, sessionDescription) {
-    let peerConnection = getConnection(id);
+  function setOffer(sessionDescription) {
+    let peerConnection = getPeerConnection();
+
     if (peerConnection) {
       console.log('peerConnection alreay exist, reuse it');
     }
     else {
       console.log('prepare new PeerConnection');
-      peerConnection = prepareNewConnection(id);
-      addConnection(id, peerConnection);
-      if (_updateUIFunc) {
-        _updateUIFunc();
-      }
+      peerConnection = prepareNewConnection();
+      setPeerConnection(peerConnection);
     }
     peerConnection.setRemoteDescription(sessionDescription)
     .then(function() {
       console.log('setRemoteDescription(offer) succsess in promise');
-      makeAnswer(id);
+      makeAnswer();
+      if (_updateUIFunc) {
+        _updateUIFunc();
+      }
     }).catch(function(err) {
       console.error('setRemoteDescription(offer) ERROR: ', err);
     });
   }
 
-  function makeAnswer(id) {
+  function setAnswer(sessionDescription) {
+    let peerConnection = getPeerConnection();
+
+    if (! peerConnection) {
+      console.error('peerConnection NOT exist!');
+      return;
+    }
+
+    peerConnection.setRemoteDescription(sessionDescription)
+    .then(function() {
+      console.log('setRemoteDescription(offer) succsess in promise');
+      if (_updateUIFunc) {
+        _updateUIFunc();
+      }
+    }).catch(function(err) {
+      console.error('setRemoteDescription(offer) ERROR: ', err);
+    });
+  }
+
+  function makeOffer() {
+    console.log('sending Offer. Creating session description...' );
+    let peerConnection = getPeerConnection();
+
+    if (peerConnection) {
+      console.log('peerConnection alreay exist, reuse it');
+    }
+    else {
+      console.log('prepare new PeerConnection');
+      peerConnection = prepareNewConnection();
+      setPeerConnection(peerConnection);
+    }
+
+    peerConnection.createOffer()
+    .then(function (sessionDescription) {
+      console.log('createOffer() succsess in promise');
+
+      // -- limit bandwidth --
+      const audioBand = 64; // kbps
+      const videoBand = 512; // kbps
+      let sdpLimit = setBandwidth(sessionDescription.sdp, audioBand, videoBand);
+      sessionDescription.sdp = sdpLimit;
+
+      return peerConnection.setLocalDescription(sessionDescription);
+    }).then(function() {
+      console.log('setLocalDescription() succsess in promise');
+      if (useTrickleICE) {
+        // -- Trickle ICE の場合は、初期SDPを相手に送る --
+        // send initial SDP when using Trickle ICE
+        sendSdp(peerConnection.localDescription);
+      }
+      else {
+        // -- Vanilla ICE の場合には、まだSDPは送らない --
+        // wait for ICE candidates for Vanilla ICE
+        //sendSdp(peerConnection.localDescription);
+      }
+    }).catch(function(err) {
+      console.error(err);
+    });
+  }
+
+  function makeAnswer() {
     console.log('sending Answer. Creating session description...' );
-    let peerConnection = getConnection(id);
     if (! peerConnection) {
       console.error('peerConnection NOT exist!');
       return;
@@ -318,20 +324,21 @@ let _updateUIFunc = null; // update UI callback
       if (useTrickleICE) {
         // -- Trickle ICE の場合は、初期SDPを相手に送る --
         // send initial SDP when using Trickle ICE
-        sendSdp(id, peerConnection.localDescription);
+        sendSdp(peerConnection.localDescription);
       }
       else {
         // -- Vanilla ICE の場合には、まだSDPは送らない --
         // wait for ICE candidates for Vanilla ICE
-        //sendSdp(id, peerConnection.localDescription);
+        //sendSdp(peerConnection.localDescription);
       }
     }).catch(function(err) {
       console.error(err);
     });
   }
 
-  function addIceCandidate(id, candidate) {
-    let peerConnection = getConnection(id);
+  function addIceCandidate(candidate) {
+    let peerConnection = getPeerConnection();
+    
     if (peerConnection) {
       peerConnection.addIceCandidate(candidate);
     }
@@ -341,42 +348,25 @@ let _updateUIFunc = null; // update UI callback
     }
   }
 
-
-  // ----- band width -----
-  // for chrome
-  //audioBandwidth = 50; // kbps
-  //videoBandwidth = 256; // kbps
-  function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
-    let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
-    sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
-
-    //// -- trial for firefox, but not work between chrome - firefox --
-    //let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n' + 'b=TIAS:' + audioBandwidth*1000 + '\r\n');
-    //sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n' + 'b=TIAS:' + videoBandwidth*1000 + '\r\n');
-    //// -- trial for firefox, but not work between chrome - firefox --
-
-    return sdpNew;
-  }
-
   // ---- send signaling info ----
   let _sendJsonFunc = null;
-
+  
   function setSendJsonFunc(func) {
     _sendJsonFunc = func;
   }
 
-  function sendSdp(id, sessionDescription) {
+  function sendSdp(sessionDescription) {
     console.log('---sending sdp ---');
     const jsonSDP = sessionDescription.toJSON();
-    console.log('sending to:' + id + '  SDP:', jsonSDP);
+    console.log('sending to:' + peerPartnerId + '  SDP:', jsonSDP);
 
-    //sendJson(id, jsonSDP);
-    _sendJsonFunc(id, jsonSDP);
+    //sendJson(jsonSDP);
+    _sendJsonFunc(jsonSDP);
   }
 
-  function sendIceCandidate(id, candidate) {
+  function sendIceCandidate(candidate) {
     console.log('---sending ICE candidate ---');
     const obj = { type: 'candidate', ice: candidate };
-    //sendJson(id, obj);
-    _sendJsonFunc(id, obj);
+    //sendJson(obj);
+    _sendJsonFunc(obj);
   }
