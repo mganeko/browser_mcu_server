@@ -300,15 +300,15 @@
   function updateButtons() {
     if (getConnectionCount() > 0) {
       disableElement('connect_button');
-      enabelElement('disconnect_button');
+      enableElement('disconnect_button');
     }
     else {
-      enabelElement('connect_button');
+      enableElement('connect_button');
       disableElement('disconnect_button');
     }
   }
 
-  function enabelElement(id) {
+  function enableElement(id) {
     let element = document.getElementById(id);
     if (element) {
       element.removeAttribute('disabled');

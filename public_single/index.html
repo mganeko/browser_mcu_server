@@ -390,27 +390,27 @@
       disableElement('start_video_button');
       disableElement('stop_video_button');
       disableElement('connect_button');
-      enabelElement('disconnect_button');
+      enableElement('disconnect_button');
       disableElement('plan_b_check');
     }
     else {
       if (getLocalStream()) {
         disableElement('start_video_button');
-        enabelElement('stop_video_button');
-        enabelElement('connect_button');
+        enableElement('stop_video_button');
+        enableElement('connect_button');
       }
       else {
-        enabelElement('start_video_button');
+        enableElement('start_video_button');
         disableElement('stop_video_button');
         disableElement('connect_button');        
       }
 
       disableElement('disconnect_button');
-      enabelElement('plan_b_check');
+      enableElement('plan_b_check');
     }
   }
 
-  function enabelElement(id) {
+  function enableElement(id) {
     let element = document.getElementById(id);
     if (element) {
       element.removeAttribute('disabled');
