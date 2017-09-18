@@ -251,6 +251,10 @@
       playVideo(localVideo, stream);
       
       updateButtons();
+
+      if (isAutoConnect()) {
+        connect();
+      }
     }).catch(function (error) { // error
       console.error('getUserMedia error:', error);
       return;
@@ -422,6 +426,11 @@
 
     let videoTrack = stream.getVideoTracks()[0];
     element.trackId = videoTrack.id;
+
+    if (isSmallSize()) {
+      element.width = 160; //480; //320;
+      element.height = 120; //240;
+    }
   }
   
   function removeRemoteVideo(id, stream) {
@@ -505,6 +514,48 @@
     }    
   }
 
+  function isAutoConnect() {
+    const search = window.location.search;
+    const re = new RegExp('auto=([^&=]+)');
+    const results = re.exec(search);
+    let auto = false;
+    if (results) {
+        const flag = results[1];
+        if ( (flag === 'Y') || (flag === 'y') || (flag === '1') || (flag === 'true') ) {
+          auto = true;
+        }
+    }
+    return auto;
+  }
+
+  function isAutoDisconnect() {
+    const search = window.location.search;
+    const re = new RegExp('autooff=([^&=]+)');
+    const results = re.exec(search);
+    let auto = false;
+    if (results) {
+        const flag = results[1];
+        if ( (flag === 'Y') || (flag === 'y') || (flag === '1') || (flag === 'true') ) {
+          auto = true;
+        }
+    }
+    return auto;
+  }
+
+  function isSmallSize() {
+    const search = window.location.search;
+    const re = new RegExp('small=([^&=]+)');
+    const results = re.exec(search);
+    let small = false;
+    if (results) {
+        const flag = results[1];
+        if ( (flag === 'Y') || (flag === 'y') || (flag === '1') || (flag === 'true') ) {
+          small = true;
+        }
+    }
+    return small;
+  }
+  // --------- initial ------------
   updateButtons();
 
 // -- for dependency check ---
@@ -518,6 +569,13 @@
 //all();
 // -- for dependency check ---
 
-  console.log('=== ready ==='); 
+  console.log('=== ready ===');
+
+  if (isAutoConnect()) {
+    startVideo();
+    //setTimeout(function() {
+    //  connect();
+    //}, 1000)
+  }
 </script>
 </html>

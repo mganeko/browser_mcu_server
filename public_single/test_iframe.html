@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>mcu meeting test</title>
+  <!--
+    // Browser MCU sample server
+    //   https://github.com/mganeko/browser_mcu_server
+    //   browser_mcu_server is provided under MIT license
+    //
+    //   This sample is using https://github.com/mganeko/browser_mcu_core
+    //
+  -->
+  <!--
+  <script src="js/pc_config.js"></script>
+  <script src="js/member_peer.js"></script>
+  <script src="socket.io/socket.io.js"></script>
+  -->
+</head>
+<body>
+  <h3>Browser MCU Member test with iframe</h3>
+  <button id="add_iframe_button"  onclick="addIFrame();">add</button>
+  <button id="remove_iframe_button"  onclick="removeIFrame();">remove</button>
+  &nbsp;&nbsp;
+  <button id="add_iframe5_button"  onclick="addIFrame5();">add 5</button>
+  <button id="remove_all_iframe_button"  onclick="removeAllIFrame();">remove all</button>
+  <div id="container"></div>
+</body>
+<script type="text/javascript">
+  let container = document.getElementById('container');
+  let id = 0;
+
+  function addIFrame() {
+    const roomname = getRoomName();
+    let element = document.createElement('iframe');
+    container.appendChild(element);
+    element.id = 'frame_' + id;
+    id++;
+
+    element.width = 320;
+    element.height = 320;
+    //element.src = 'index_auto.html?auto=1&room=' + roomname;
+    //element.src = 'index.html?auto=1&room=' + roomname;
+    element.src = 'index.html?auto=1&small=1';
+  }
+
+  function removeIFrame() {
+    let element = container.firstChild;
+    container.removeChild(element);
+    delete element;
+    element = null;
+  }
+
+  function addIFrame5() {
+    for (let i = 0; i < 5; i++) {
+      addIFrame();
+    }
+  }
+
+  function removeAllIFrame() {
+    let element = container.firstChild;
+    while (element) {
+      container.removeChild(element);
+      delete element;
+      element = container.firstChild;
+    }
+  }
+
+  function getRoomName() {
+      const search = window.location.search;
+      const re = new RegExp('room=([^&=]+)');
+      const results = re.exec(search);
+      let room = '_iframeroom_';
+      if (results) {
+          room = results[1];
+      }
+      return room;
+  }
+
+  console.log('=== ready ===');
+</script>
+</html>
