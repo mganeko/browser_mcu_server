@@ -144,7 +144,7 @@
     else if (message.type === 'bye') {
       console.log('-- remote peer disconnecting. id:' + fromId);
       if (! isConnected(fromId)) {
-        console.error('NOT Connected to id:' + fromId);
+        console.warn('NOT Connected to id:' + fromId);
         return;
       }
 
@@ -153,7 +153,7 @@
     else if (message.type === 'client_disconnect') {
       console.log('-- remote peer disconnected. id:' + fromId);
       if (! isConnected(fromId)) {
-        console.error('NOT Connected to id:' + fromId);
+        console.warn('NOT Connected to id:' + fromId);
         return;
       }
 
@@ -260,7 +260,7 @@
     mcu.removeRemoteAudioMinusOne(peerid)
 
     // -- remove peer ---
-    removeConection(peerid);
+    removeConnection(peerid);
 
     // --- stop mix --
     if (getConnectionCount() === 0) {

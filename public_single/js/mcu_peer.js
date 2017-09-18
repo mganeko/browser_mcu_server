@@ -3,13 +3,6 @@
 //
 //  Browser MCU Server/Service
 
-// DONE:  invert dependence
-//  DONE: mcu.xx()
-//  DONE: disconnectOne()
-//  DONE: updateButtons()
-//  DONE: showState()
-//  DONE: logStream()
-
 const useTrickleICE = true;
 let _Connections = [];
 let _mcuObject = null; // object of MCU Core
@@ -30,11 +23,11 @@ let _updateUIFunc = null; // update UI callback
   }
 
   // --- log state
-  function logState(text) {
+  function _logState(text) {
     console.log(text);
   }
 
-  function logStream(msg, stream) {
+  function _logStream(msg, stream) {
     console.log(msg + ': id=' + stream.id);
 
     let videoTracks = stream.getVideoTracks();
@@ -61,7 +54,7 @@ let _updateUIFunc = null; // update UI callback
   function getConnection(id) {
     let peer = _Connections[id];
     if (! peer) {
-      console.warn('Peer not exist for id:' + id);
+      console.log('Peer not exist for id:' + id);
     }
     return peer;
   }
@@ -85,7 +78,7 @@ let _updateUIFunc = null; // update UI callback
     _Connections[id] = peer;
   }
 
-  function removeConection(id) {
+  function removeConnection(id) {
     if (! isConnected(id)) {
       console.warn('NOT CONNECTED to id:' + id);
       return;
@@ -131,11 +124,27 @@ let _updateUIFunc = null; // update UI callback
     let pc_config = _PeerConnectionConfig;
     let peer = new RTCPeerConnection(pc_config);
     // --- on get remote stream ---
-    if ('ontrack' in peer) {
+    if ('onaddstream' in peer) {
+      peer.onaddstream = function(event) {
+        console.log('-- peer.onaddstream()');
+        let stream = event.stream;
+        _logStream('remotestream of onaddstream()', stream);
+        
+        if (stream.getVideoTracks().length > 0) {
+          console.log('adding remote video');
+          _mcuObject.addRemoteVideo(stream);
+        }
+        if (stream.getAudioTracks().length > 0) {
+          _mcuObject.addRemoteAudioMinusOne(id, stream);
+          console.log('adding remote audio minus-one');
+        }
+      };
+    }
+    else if ('ontrack' in peer) {
       peer.ontrack = function(event) {
         console.log('-- peer.ontrack()');
         let stream = event.streams[0];
-        logStream('remotestream of ontrack()', stream);
+        _logStream('remotestream of ontrack()', stream);
         if (event.track.kind === "video") {
           _mcuObject.addRemoteVideo(stream);
         }
@@ -148,20 +157,7 @@ let _updateUIFunc = null; // update UI callback
       };
     }
     else {
-      peer.onaddstream = function(event) {
-        console.log('-- peer.onaddstream()');
-        let stream = event.stream;
-        logStream('remotestream of onaddstream()', stream);
-        
-        if (stream.getVideoTracks().length > 0) {
-          console.log('adding remote video');
-          _mcuObject.addRemoteVideo(stream);
-        }
-        if (stream.getAudioTracks().length > 0) {
-          _mcuObject.addRemoteAudioMinusOne(id, stream);
-          console.log('adding remote audio minus-one');
-        }
-      };
+      console.error('NOT remoteStream handler');
     }
     // --- on get local ICE candidate
     peer.onicecandidate = function (evt) {
@@ -204,7 +200,7 @@ let _updateUIFunc = null; // update UI callback
     peer.oniceconnectionstatechange = function() {
       console.log('== ice connection state=' + peer.iceConnectionState);
       //showState('ice connection state=' + peer.iceConnectionState);
-      logState('ice connection state=' + peer.iceConnectionState);
+      _logState('ice connection state=' + peer.iceConnectionState);
       if (peer.iceConnectionState === 'disconnected') {
         console.log('-- disconnected, but wait for re-connect --');
       }
@@ -249,7 +245,11 @@ let _updateUIFunc = null; // update UI callback
     let stream = _mcuObject.prepareMinusOneStream(id);
     if (stream) {
       console.log('Adding mix stream...');
-      if ('addTrack' in peer) {
+      if ('addStream' in peer) {
+        console.log('use addStream()');
+        peer.addStream(stream);
+      }
+      else if ('addTrack' in peer) {
         console.log('use addTrack()');
         let tracks = stream.getTracks();
         for (let track of tracks) {
@@ -257,8 +257,7 @@ let _updateUIFunc = null; // update UI callback
         }
       }
       else {
-        console.log('use addStream()');
-        peer.addStream(stream);
+        console.error('NO method to add localStream');
       }
     }
     else {
