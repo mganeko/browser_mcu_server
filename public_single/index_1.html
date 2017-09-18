@@ -1,0 +1,442 @@
+<!doctype html>
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+ <title>mcu meeting</title>
+  <!--
+    // Browser MCU sample server
+    //   https://github.com/mganeko/browser_mcu_server
+    //   browser_mcu_server is provided under MIT license
+    //
+    //   This sample is using https://github.com/mganeko/browser_mcu_core
+    //
+  -->
+  <script src="js/pc_config.js"></script>
+  <script src="js/member_peer.js"></script>
+</head>
+<body>
+  browser_mcu meeting member with websocket<br />
+  <button id="start_video_button" onclick="startVideo();">Start Video</button>
+  <button id="stop_video_button" onclick="stopVideo();">Stop Video</button>
+  &nbsp;
+  <button id="connect_button"  onclick="connect();">Connect</button>
+  <button id="disconnect_button"  onclick="disconnect();">Disconnect</button>
+  <br />remote video<br />
+  <div id="remote_container"></div>
+  <div>
+    local video<br />
+    <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <span id="state_span"></span>
+  </div>
+</body>
+<script type="text/javascript">
+  // MOVED: const useTrickleICE = true;
+  // MOVED: let localStream = null;
+  // MOVED: let peerConnection = null;
+
+  let localVideo = document.getElementById('local_video');
+  let remoteContainer = document.getElementById('remote_container');
+  let stateSpan = document.getElementById('state_span');
+
+  let peerPartnerId = null;
+  
+  // --- prefix -----
+  navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
+                            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+  RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+
+// -- for dependency check ---
+//function all() {
+// -- for dependency check ---
+
+  // --- setup peer manage functions ---
+  setSendJsonFunc(sendJson);
+  setUpdateUIFunc(updateButtons);
+  setDisconnectFunc(disconnect);
+  setRemoteVideoFunc(addRemoteVideo, removeRemoteVideo);
+  
+
+  // -------- websocket ----
+  let wsProtocol = 'ws://';
+  let protocol = window.location.protocol;
+  if  (protocol === 'https:') {
+    wsProtocol = 'wss://';
+  }
+  let wsUrl = wsProtocol +  window.location.hostname + ':' + window.location.port + '/';
+  console.log('websocket url=' + wsUrl);
+  let ws = new WebSocket(wsUrl);
+  ws.onopen = function(evt) {
+    console.log('ws open()');
+  };
+  ws.onerror = function(err) {
+    console.error('ws onerror() ERR:', err);
+  };
+  ws.onmessage = function(evt) {
+    console.log('ws onmessage() data:', evt.data);
+    const message = JSON.parse(evt.data);
+    handleMessage(message);
+  };
+  
+  function handleMessage(message) {
+    const from = message.from;
+  
+    if (message.type === 'call') {
+      console.log('ignore call');
+      return;
+
+      //peerPartnerId = from;
+      //sendJson({ type: 'response'} );
+    }
+    else if (message.type === 'response') {
+      // --- start offer ----
+      peerPartnerId = from;
+      makeOffer();
+    }
+    else if (message.type === 'callme') {
+      // --- request from MCU --
+      console.log('got callme from MCU:' + from);
+      if (peerPartnerId) {
+        console.warn('already connected, so ignore');
+        return;
+      }
+      if (! getLocalStream()) {
+        console.warn('localstream NOT READY, so ignore');
+        return;
+      }
+
+      // --- start offer ----
+      peerPartnerId = from;
+      makeOffer();
+    }
+    else if (message.type === 'offer') {
+      console.warn('got offer, but MUST NOT got it');
+      return;
+
+      // -- got offer ---
+      //console.log('Received offer ...');
+      //if (from !== peerPartnerId) {
+      //  console.warn('Offer from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+      //  return;
+      //}
+      //
+      //const offer = new RTCSessionDescription(message);
+      //setOffer(offer);
+    }
+    else if (message.type === 'answer') {
+      // --- got answer ---
+      console.log('Received answer ...');
+      if (from !== peerPartnerId) {
+        console.warn('Anser from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+        return;
+      }
+
+      const answer = new RTCSessionDescription(message);
+      setAnswer(answer);
+    }
+    else if (message.type === 'candidate') {
+      // --- got ICE candidate ---
+      console.log('Received ICE candidate ...');
+      if (from !== peerPartnerId) {
+        console.warn('ICE candidate from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+        return;
+      }
+
+      let candidate = new RTCIceCandidate(message.ice);
+      console.log(candidate);
+      addIceCandidate(candidate);
+    }
+    else if (message.type === 'bye') {
+      console.log('-- remote peer disconnecting');
+      if (from !== peerPartnerId) {
+        console.warn('bye from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+        return;
+      }
+
+      let peerConnection = getPeerConnection();
+      if (peerConnection) {
+        let streams = peerConnection.getRemoteStreams();
+        for (let key in streams) {
+          let stream = streams[key];
+           removeRemoteVideo(stream.id);
+        }
+        peerConnection.close();
+        peerConnection = null;
+        setPeerConnection(null);
+        peerPartnerId = null;
+      }
+
+      updateButtons();
+    }
+    else if (message.type === 'client_disconnect') {
+      console.log('-- remote peer disconnected');
+      if (from === peerPartnerId) {
+        let peerConnection = getPeerConnection();
+        if (peerConnection) {
+          let streams = peerConnection.getRemoteStreams();
+          for (let key in streams) {
+            let stream = streams[key];
+            removeRemoteVideo(stream.id);
+          }
+          peerConnection.close();
+          peerConnection = null;
+          setPeerConnection(null);
+          peerPartnerId = null;
+        }
+
+        updateButtons();
+      }
+    }
+  }
+
+  // ---------------------- media handling ----------------------- 
+  // start local video
+  function startVideo() {
+    getDeviceStream({video: true, audio: true})
+    .then(function (stream) { // success
+      //localStream = stream;
+      setLocalStream(stream);
+      logStream('localstream', stream);
+      playVideo(localVideo, stream);
+      
+      updateButtons();
+    }).catch(function (error) { // error
+      console.error('getUserMedia error:', error);
+      return;
+    });
+  }
+
+  // stop local video
+  function stopVideo() {
+    pauseVideo(localVideo);
+    let localStream = getLocalStream();
+    stopLocalStream(localStream);
+    localStream = null;
+    setLocalStream(null);
+
+    updateButtons();
+  }
+
+  function stopLocalStream(stream) {
+    let tracks = stream.getTracks();
+    if (! tracks) {
+      console.warn('NO tracks');
+      return;
+    }
+    
+    for (let track of tracks) {
+      track.stop();
+    }
+  }
+  
+  function getDeviceStream(option) {
+    if ('getUserMedia' in navigator.mediaDevices) {
+      console.log('navigator.mediaDevices.getUserMadia');
+      return navigator.mediaDevices.getUserMedia(option);
+    }
+    else {
+      console.log('wrap navigator.getUserMadia with Promise');
+      return new Promise(function(resolve, reject){    
+        navigator.getUserMedia(option,
+          resolve,
+          reject
+        );
+      });      
+    }
+  }
+
+  function playVideo(element, stream) {
+    if ('srcObject' in element) {
+      element.srcObject = stream;
+    }
+    else {
+      element.src = window.URL.createObjectURL(stream);
+    }
+    element.play();
+    element.volume = 0;
+  }
+
+  function pauseVideo(element) {
+    element.pause();
+    if ('srcObject' in element) {
+      element.srcObject = null;
+    }
+    else {
+      if (element.src && (element.src !== '') ) {
+        window.URL.revokeObjectURL(element.src);
+      }
+      element.src = '';
+    }
+  }
+
+  // -----  signaling ----
+  function sendJson(json) {
+    // -- socket.io --
+    //socket.json.send(json);
+
+    // --- websocket --
+    json.to = peerPartnerId;
+    const message = JSON.stringify(json);
+    ws.send(message);  
+  }
+
+  function broadcastJson(json) {
+    // -- socket.io --
+    //socket.json.send(json);
+
+    // --- websocket --
+    const message = JSON.stringify(json);
+    ws.send(message);
+  }
+
+  // start PeerConnection
+  function connect() {
+    call();
+
+    updateButtons();
+  }
+
+  function call() {
+    console.log('calling ..');
+    broadcastJson({type: "call"});
+  }
+  
+  // close PeerConnection
+  function disconnect() {
+    if (peerPartnerId) {
+      sendJson({type: "bye"});
+    }
+    else {
+      broadcastJson({type: "bye"});
+    }
+
+    let peerConnection = getPeerConnection();
+    if (peerConnection) {
+      console.log('Hang up.');
+      peerConnection.close();
+      peerConnection = null;
+      setPeerConnection(null);
+      
+      removeAllRemoteVideo();
+    }
+    else {
+      console.warn('peer NOT exist.');
+    }
+
+    peerPartnerId = null;
+    updateButtons();
+  }
+  
+  function showState(state) {
+    stateSpan.innerText = state;
+  }
+
+  function logStream(msg, stream) {
+    console.log(msg + ': id=' + stream.id);
+
+    let videoTracks = stream.getVideoTracks();
+    if (videoTracks) {
+    console.log('videoTracks.length=' + videoTracks.length);
+    videoTracks.forEach(function(track) {
+      console.log(' track.id=' + track.id);
+    });
+    }
+    
+    let audioTracks = stream.getAudioTracks();
+    if (audioTracks) {
+    console.log('audioTracks.length=' + audioTracks.length);
+    audioTracks.forEach(function(track) {
+      console.log(' track.id=' + track.id);
+    });
+    }
+  }
+ 
+  function addRemoteVideo(id, stream) {
+    let element = document.createElement('video');
+    remoteContainer.appendChild(element);
+    element.id = 'remote_' + id;
+    element.width = 480; //320;
+    element.height = 360; //240;
+    element.srcObject = stream;
+    element.play();
+    element.volume = 1.0;
+    element.controls = true;
+  }
+  
+  function removeRemoteVideo(id, stream) {
+    console.log(' ---- removeRemoteVideo() id=' + id);
+    let element = document.getElementById('remote_' + id);
+    if (element) {
+      element.pause();
+      element.srcObject = null;
+      remoteContainer.removeChild(element);
+    }
+    else {
+      console.log('child element NOT FOUND');
+    }
+  }
+
+  function removeAllRemoteVideo() {
+    while (remoteContainer.firstChild) {
+      remoteContainer.firstChild.pause();
+      remoteContainer.firstChild.srcObject = null;
+      remoteContainer.removeChild(remoteContainer.firstChild);
+    }
+  }
+
+  function updateButtons() {
+    let peerConnection = getPeerConnection();
+    if (peerConnection) {
+      disableElement('start_video_button');
+      disableElement('stop_video_button');
+      disableElement('connect_button');
+      enableElement('disconnect_button');
+      disableElement('plan_b_check');
+    }
+    else {
+      if (getLocalStream()) {
+        disableElement('start_video_button');
+        enableElement('stop_video_button');
+        enableElement('connect_button');
+      }
+      else {
+        enableElement('start_video_button');
+        disableElement('stop_video_button');
+        disableElement('connect_button');        
+      }
+
+      disableElement('disconnect_button');
+      enableElement('plan_b_check');
+    }
+  }
+
+  function enableElement(id) {
+    let element = document.getElementById(id);
+    if (element) {
+      element.removeAttribute('disabled');
+    }
+  }
+
+  function disableElement(id) {
+    let element = document.getElementById(id);
+    if (element) {
+      element.setAttribute('disabled', '1');
+    }    
+  }
+
+  updateButtons();
+
+// -- for dependency check ---
+//  setTimeout(function() {
+//    startVideo();
+//    setTimeout(function() {
+//      connect();
+//    }, 1000)
+//  }, 500)
+//}
+//all();
+// -- for dependency check ---
+
+  console.log('=== ready ==='); 
+</script>
+</html>
