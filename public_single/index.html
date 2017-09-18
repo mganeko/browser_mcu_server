@@ -25,7 +25,7 @@
   <div id="remote_container"></div>
   <div>
     local video<br />
-    <video id="local_video" autoplay style="width: 160px; height: 120px; border: 1px solid black;"></video>
+    <video id="local_video" autoplay style="width: 80px; height: 60px; border: 1px solid black;"></video>
     <span id="state_span"></span>
   </div>
 </body>
@@ -38,7 +38,7 @@
   let remoteContainer = document.getElementById('remote_container');
   let stateSpan = document.getElementById('state_span');
 
-  let peerPartnerId = null;
+  //let peerPartnerId = null;
   
   // --- prefix -----
   navigator.getUserMedia  = navigator.getUserMedia    || navigator.webkitGetUserMedia ||
@@ -90,24 +90,26 @@
     }
     else if (message.type === 'response') {
       // --- start offer ----
-      peerPartnerId = from;
-      makeOffer();
+      //peerPartnerId = from;
+      makeOffer(from);
     }
     else if (message.type === 'callme') {
       // --- request from MCU --
       console.log('got callme from MCU:' + from);
-      if (peerPartnerId) {
+      //if (peerPartnerId) {
+      if (isConnected(from)) {
         console.warn('already connected, so ignore');
         return;
       }
+
       if (! getLocalStream()) {
         console.warn('localstream NOT READY, so ignore');
         return;
       }
 
       // --- start offer ----
-      peerPartnerId = from;
-      makeOffer();
+      //peerPartnerId = from;
+      makeOffer(from);
     }
     else if (message.type === 'offer') {
       console.warn('got offer, but MUST NOT got it');
@@ -126,33 +128,37 @@
     else if (message.type === 'answer') {
       // --- got answer ---
       console.log('Received answer ...');
-      if (from !== peerPartnerId) {
-        console.warn('Anser from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+      //if (from !== peerPartnerId) {
+      if (! isConnected(from)) {
+        console.warn('Anser from Wrong partner:' + from); // + ',  MUST BE:' + peerPartnerId);
         return;
       }
 
       const answer = new RTCSessionDescription(message);
-      setAnswer(answer);
+      setAnswer(from, answer);
     }
     else if (message.type === 'candidate') {
       // --- got ICE candidate ---
       console.log('Received ICE candidate ...');
-      if (from !== peerPartnerId) {
-        console.warn('ICE candidate from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+      //if (from !== peerPartnerId) {
+      if (! isConnected(from)) {
+        console.warn('ICE candidate from Wrong partner:' + from); // + ',  MUST BE:' + peerPartnerId);
         return;
       }
 
       let candidate = new RTCIceCandidate(message.ice);
       console.log(candidate);
-      addIceCandidate(candidate);
+      addIceCandidate(from, candidate);
     }
     else if (message.type === 'bye') {
-      console.log('-- remote peer disconnecting');
-      if (from !== peerPartnerId) {
-        console.warn('bye from Wrong partner:' + from + ',  MUST BE:' + peerPartnerId);
+      console.log('-- remote peer disconnecting ---');
+      //if (from !== peerPartnerId) {
+      if (! isConnected(from)) {
+        console.warn('bye from Wrong partner:' + from); // + ',  MUST BE:' + peerPartnerId);
         return;
       }
 
+      /*
       let peerConnection = getPeerConnection();
       if (peerConnection) {
         let streams = peerConnection.getRemoteStreams();
@@ -165,12 +171,16 @@
         setPeerConnection(null);
         peerPartnerId = null;
       }
+      */
 
+      disconnectPeer(from);
       updateButtons();
     }
     else if (message.type === 'client_disconnect') {
-      console.log('-- remote peer disconnected');
-      if (from === peerPartnerId) {
+      console.log('-- remote peer disconnected --');
+      if (isConnected(from)) {
+      //if (from === peerPartnerId) {
+        /*
         let peerConnection = getPeerConnection();
         if (peerConnection) {
           let streams = peerConnection.getRemoteStreams();
@@ -183,9 +193,50 @@
           setPeerConnection(null);
           peerPartnerId = null;
         }
+        */
 
+        disconnectPeer(from);
         updateButtons();
       }
+    }
+
+    function disconnectPeer(id) {
+      //let peerConnection = getPeerConnection();
+      let peerConnection = getConnection(id);
+      if (peerConnection) {
+        if ('getRemoteStreams' in peerConnection) {
+          // -- not supported in Safari TP --
+          let streams = peerConnection.getRemoteStreams();
+          for (let key in streams) {
+            let stream = streams[key];
+            removeRemoteVideo(stream.id);
+          }
+        }
+        else if ('getReceivers' in peerConnection) {
+          // -- for Safari TP ---
+          let receivers = peerConnection.getReceivers();
+          for (let key in receivers) {
+            let receiver = receivers[key];
+            if (receiver.track.kind === 'video') {
+              // WARN : track.id !== stream.id
+              //removeRemoteVideo(receiver.track.id);
+
+              removeRemoteVideoByTrackId(receiver.track.id);
+            }
+            else if (receiver.track.kind === 'audio') {
+              console.warn('skip audio track');
+            }
+          }
+        }
+        else {
+          console.error('NO WAY to get remote stream');
+        }
+
+        removeConnection(id);
+        //peerConnection.close();
+        peerConnection = null;
+      }
+      //peerPartnerId = null;
     }
   }
 
@@ -270,12 +321,13 @@
   }
 
   // -----  signaling ----
-  function sendJson(json) {
+  function sendJson(id, json) {
     // -- socket.io --
+    //json.to = id;
     //socket.json.send(json);
 
     // --- websocket --
-    json.to = peerPartnerId;
+    json.to = id;
     const message = JSON.stringify(json);
     ws.send(message);  
   }
@@ -303,13 +355,14 @@
   
   // close PeerConnection
   function disconnect() {
-    if (peerPartnerId) {
-      sendJson({type: "bye"});
-    }
-    else {
+    //if (peerPartnerId) {
+    //  sendJson({type: "bye"});
+    //}
+    //else {
       broadcastJson({type: "bye"});
-    }
+    //}
 
+    /*--
     let peerConnection = getPeerConnection();
     if (peerConnection) {
       console.log('Hang up.');
@@ -322,8 +375,13 @@
     else {
       console.warn('peer NOT exist.');
     }
-
     peerPartnerId = null;
+    --*/
+
+    // ---- close all peers ---
+    closeAllConnections();
+    removeAllRemoteVideo();
+
     updateButtons();
   }
   
@@ -361,6 +419,9 @@
     element.play();
     element.volume = 1.0;
     element.controls = true;
+
+    let videoTrack = stream.getVideoTracks()[0];
+    element.trackId = videoTrack.id;
   }
   
   function removeRemoteVideo(id, stream) {
@@ -376,6 +437,24 @@
     }
   }
 
+  function removeRemoteVideoByTrackId(trackId, stream) {
+    console.log(' ---- removeRemoteVideoByTrackId() trackId=' + trackId);
+    //let childs = remoteContainer.childNodes;
+    let childs = document.querySelectorAll('video');
+    
+    for (let i = 0 ; i < childs.length; i++) {
+      let child = childs[i];
+      if (child.trackId === trackId) {
+        remoteContainer.removeChild(child);
+        console.log('find video, remove');
+
+        return;
+      }
+    }
+
+    console.log('CANNOT find video');
+  }
+
   function removeAllRemoteVideo() {
     while (remoteContainer.firstChild) {
       remoteContainer.firstChild.pause();
@@ -385,8 +464,10 @@
   }
 
   function updateButtons() {
-    let peerConnection = getPeerConnection();
-    if (peerConnection) {
+    //let peerConnection = getPeerConnection();
+    //if (peerConnection) {
+
+    if (getConnectionCount() > 0) {
       disableElement('start_video_button');
       disableElement('stop_video_button');
       disableElement('connect_button');

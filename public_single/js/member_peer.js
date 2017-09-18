@@ -1,25 +1,12 @@
 // member_peer.js
-//  handling PeerConnections for MCU Members
+//  handling PeerConnections for MCU Members, with N to N
 //
 //  Browser MCU Server/Service
 
-// reduce invert dependence
-//  DONE: sendSDP()
-//  DONE: sendIceCandidate()
-//  DONE: updateButtons()
-//  DONE: logStream()
-//  DONE: showState()
-//  DONE: disconnect()
-
-//  DONE: addRemoteVideo()
-//  DONE: removeRemoteVideo()
-
-
-
-
 const useTrickleICE = true;
 let _localStream = null;
-let _peerConnection = null;
+//let _peerConnection = null;
+let _Connections = [];
 
 let _addRemoteVideoFunc = null;
 let _removeRemoteVideoFunc = null;
@@ -35,26 +22,18 @@ let _updateUIFunc = null; // update UI callback
     return _localStream
   }
 
-  function setPeerConnection(peer) {
-    _peerConnection = peer;
-  }
+  //function setPeerConnection(peer) {
+  //  _peerConnection = peer;
+  //}
 
-  function getPeerConnection() {
-    return _peerConnection;
-  }
+  //function getPeerConnection() {
+  //  return _peerConnection;
+  //}
 
   function setRemoteVideoFunc(addFunc, removeFunc) {
     _addRemoteVideoFunc = addFunc;
     _removeRemoteVideoFunc = removeFunc;
   }
-
-  //function setAddRemoteVideoFunc(func) {
-  //  _addRemoteVideoFunc = func;
-  //}
-
-  //function setRemoveRemoteVideoFunc(func) {
-  //  _removeRemoteVideoFunc = func;
-  //}
 
   function setDisconnectFunc(func) {
     _disconnectFunc = func;
@@ -65,7 +44,7 @@ let _updateUIFunc = null; // update UI callback
   }
 
   // --- log state
-  function logState(text) {
+  function _logState(text) {
     console.log(text);
   }
 
@@ -89,28 +68,92 @@ let _updateUIFunc = null; // update UI callback
     }
   }
 
-  // ----- band width -----
-  // for chrome
-  //audioBandwidth = 50; // kbps
-  //videoBandwidth = 256; // kbps
-  function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
-    let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
-    sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
+  // -- mcu connection management ---
+  // 
+  //
 
-    //// -- trial for firefox, but not work between chrome - firefox --
-    //let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n' + 'b=TIAS:' + audioBandwidth*1000 + '\r\n');
-    //sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n' + 'b=TIAS:' + videoBandwidth*1000 + '\r\n');
-    //// -- trial for firefox, but not work between chrome - firefox --
+  function getConnection(id) {
+    let peer = _Connections[id];
+    if (! peer) {
+      console.log('Peer not exist for id:' + id);
+    }
+    return peer;
+  }
 
-    return sdpNew;
+  function isConnected(id) {
+    const peer = _Connections[id];
+    if (peer) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function addConnection(id, peer) {
+    if (isConnected(id)) {
+      console.error('ALREADY CONNECTED to id:' + id);
+      return;
+    }
+
+    _Connections[id] = peer;
+  }
+
+  function removeConnection(id) {
+    if (! isConnected(id)) {
+      console.warn('NOT CONNECTED to id:' + id);
+      return;
+    }
+
+    let peer = _Connections[id];
+    peer.close();
+    peer = null;
+    delete _Connections[id];
+  }
+
+  function getRemoteStream(id) {
+    let peer = getConnection(id);
+    if (peer) {
+      let stream = peer.getRemoteStreams()[0];
+      return stream;
+    }
+    else {
+      console.warn('NOT CONNECTED to id:' + id);
+      return null;
+    }
+  }
+
+  function closeAllConnections() {
+    for (let id in _Connections) {
+      let peer = _Connections[id];
+      peer.close();
+      peer = null;
+      delete _Connections[id];
+    }
+  }
+
+  function getConnectionCount() {
+    //let l1 = _Connections.length;
+    //let l2 = Object.keys(_Connections).length;
+    //console.log('getConnectionCount() l1=' + l1 + '  l2=' + l2 );
+    return  Object.keys(_Connections).length;
   }
 
   // ---------------------- connection handling -----------------------
-  function prepareNewConnection() {
+  function prepareNewConnection(id) {
     let pc_config = _PeerConnectionConfig;
     let peer = new RTCPeerConnection(pc_config);
     // --- on get remote stream ---
-    if ('ontrack' in peer) {
+    if ('onaddstream' in peer) {
+      peer.onaddstream = function(event) {
+        console.log('-- peer.onaddstream()');
+        let stream = event.stream;
+        _logStream('remotestream of onaddstream()', stream);
+        
+        _addRemoteVideoFunc(stream.id, stream);
+      };
+    }
+    else if ('ontrack' in peer) {
       peer.ontrack = function(event) {
         console.log('-- peer.ontrack()');
         let stream = event.streams[0];
@@ -122,13 +165,7 @@ let _updateUIFunc = null; // update UI callback
       };
     }
     else {
-      peer.onaddstream = function(event) {
-        console.log('-- peer.onaddstream()');
-        let stream = event.stream;
-        _logStream('remotestream of onaddstream()', stream);
-        
-        _addRemoteVideoFunc(stream.id, stream);
-      };
+      console.error('NOT remoteStream handler');
     }
     // --- on get local ICE candidate
     peer.onicecandidate = function (evt) {
@@ -137,7 +174,7 @@ let _updateUIFunc = null; // update UI callback
         if (useTrickleICE) {
           // Trickle ICE の場合は、ICE candidateを相手に送る
           // send ICE candidate when using Trickle ICE
-          sendIceCandidate(evt.candidate);
+          sendIceCandidate(id, evt.candidate);
         }
         else {
           // Vanilla ICE の場合には、何もしない
@@ -152,7 +189,7 @@ let _updateUIFunc = null; // update UI callback
         else {
           // Vanilla ICE の場合には、ICE candidateを含んだSDPを相手に送る
           // send SDP with ICE candidtes when using Vanilla ICE
-          sendSdp(peer.localDescription);
+          sendSdp(id, peer.localDescription);
         }
       }
     };
@@ -171,14 +208,14 @@ let _updateUIFunc = null; // update UI callback
     peer.oniceconnectionstatechange = function() {
       console.log('== ice connection state=' + peer.iceConnectionState);
       //showState('ice connection state=' + peer.iceConnectionState);
-      logState('ice connection state=' + peer.iceConnectionState);
+      _logState('ice connection state=' + peer.iceConnectionState);
       if (peer.iceConnectionState === 'disconnected') {
         console.log('-- disconnected, but wait for re-connect --');
       }
       else if (peer.iceConnectionState === 'failed') {
         console.log('-- failed, so give up --');
         if (_disconnectFunc) {
-          _disconnectFunc();
+          _disconnectFunc(id);
         }
       }
     };
@@ -200,7 +237,11 @@ let _updateUIFunc = null; // update UI callback
     let localStream = getLocalStream();
     if (localStream) {
       console.log('Adding local stream...');
-      if ('addTrack' in peer) {
+      if ('addStream' in peer) {
+        console.log('use addStream()');
+        peer.addStream(localStream);
+      }
+      else if ('addTrack' in peer) {
         console.log('use addTrack()');
         let tracks = localStream.getTracks();
         for (let track of tracks) {
@@ -208,8 +249,7 @@ let _updateUIFunc = null; // update UI callback
         }
       }
       else {
-        console.log('use addStream()');
-        peer.addStream(localStream);
+        console.error('NO method to add localStream');
       }
     }
     else {
@@ -218,21 +258,22 @@ let _updateUIFunc = null; // update UI callback
     return peer;
   }
 
-  function setOffer(sessionDescription) {
-    let peerConnection = getPeerConnection();
+  function setOffer(id, sessionDescription) {
+    let peerConnection = getConnection(id);
 
     if (peerConnection) {
       console.log('peerConnection alreay exist, reuse it');
     }
     else {
       console.log('prepare new PeerConnection');
-      peerConnection = prepareNewConnection();
-      setPeerConnection(peerConnection);
+      peerConnection = prepareNewConnection(id);
+      //setPeerConnection(peerConnection);
+      addConnection(id, peerConnection);
     }
     peerConnection.setRemoteDescription(sessionDescription)
     .then(function() {
       console.log('setRemoteDescription(offer) succsess in promise');
-      makeAnswer();
+      makeAnswer(id);
       if (_updateUIFunc) {
         _updateUIFunc();
       }
@@ -241,8 +282,8 @@ let _updateUIFunc = null; // update UI callback
     });
   }
 
-  function setAnswer(sessionDescription) {
-    let peerConnection = getPeerConnection();
+  function setAnswer(id, sessionDescription) {
+    let peerConnection = getConnection(id);
 
     if (! peerConnection) {
       console.error('peerConnection NOT exist!');
@@ -260,17 +301,18 @@ let _updateUIFunc = null; // update UI callback
     });
   }
 
-  function makeOffer() {
+  function makeOffer(id) {
     console.log('sending Offer. Creating session description...' );
-    let peerConnection = getPeerConnection();
+    let peerConnection = getConnection(id);
 
     if (peerConnection) {
       console.log('peerConnection alreay exist, reuse it');
     }
     else {
       console.log('prepare new PeerConnection');
-      peerConnection = prepareNewConnection();
-      setPeerConnection(peerConnection);
+      peerConnection = prepareNewConnection(id);
+      //setPeerConnection(peerConnection);
+      addConnection(id, peerConnection);
     }
 
     peerConnection.createOffer()
@@ -289,20 +331,21 @@ let _updateUIFunc = null; // update UI callback
       if (useTrickleICE) {
         // -- Trickle ICE の場合は、初期SDPを相手に送る --
         // send initial SDP when using Trickle ICE
-        sendSdp(peerConnection.localDescription);
+        sendSdp(id, peerConnection.localDescription);
       }
       else {
         // -- Vanilla ICE の場合には、まだSDPは送らない --
         // wait for ICE candidates for Vanilla ICE
-        //sendSdp(peerConnection.localDescription);
+        //sendSdp(id, peerConnection.localDescription);
       }
     }).catch(function(err) {
       console.error(err);
     });
   }
 
-  function makeAnswer() {
+  function makeAnswer(id) {
     console.log('sending Answer. Creating session description...' );
+    let peerConnection = getConnection(id);
     if (! peerConnection) {
       console.error('peerConnection NOT exist!');
       return;
@@ -324,20 +367,20 @@ let _updateUIFunc = null; // update UI callback
       if (useTrickleICE) {
         // -- Trickle ICE の場合は、初期SDPを相手に送る --
         // send initial SDP when using Trickle ICE
-        sendSdp(peerConnection.localDescription);
+        sendSdp(id, peerConnection.localDescription);
       }
       else {
         // -- Vanilla ICE の場合には、まだSDPは送らない --
         // wait for ICE candidates for Vanilla ICE
-        //sendSdp(peerConnection.localDescription);
+        //sendSdp(id, peerConnection.localDescription);
       }
     }).catch(function(err) {
       console.error(err);
     });
   }
 
-  function addIceCandidate(candidate) {
-    let peerConnection = getPeerConnection();
+  function addIceCandidate(id, candidate) {
+    let peerConnection = getConnection(id);
     
     if (peerConnection) {
       peerConnection.addIceCandidate(candidate);
@@ -348,6 +391,23 @@ let _updateUIFunc = null; // update UI callback
     }
   }
 
+
+  // ----- band width -----
+  // for chrome
+  //audioBandwidth = 50; // kbps
+  //videoBandwidth = 256; // kbps
+  function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
+    let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
+    sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
+
+    //// -- trial for firefox, but not work between chrome - firefox --
+    //let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n' + 'b=TIAS:' + audioBandwidth*1000 + '\r\n');
+    //sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n' + 'b=TIAS:' + videoBandwidth*1000 + '\r\n');
+    //// -- trial for firefox, but not work between chrome - firefox --
+
+    return sdpNew;
+  }
+
   // ---- send signaling info ----
   let _sendJsonFunc = null;
   
@@ -355,18 +415,18 @@ let _updateUIFunc = null; // update UI callback
     _sendJsonFunc = func;
   }
 
-  function sendSdp(sessionDescription) {
+  function sendSdp(id, sessionDescription) {
     console.log('---sending sdp ---');
     const jsonSDP = sessionDescription.toJSON();
-    console.log('sending to:' + peerPartnerId + '  SDP:', jsonSDP);
+    console.log('sending to:' + id + '  SDP:', jsonSDP);
 
     //sendJson(jsonSDP);
-    _sendJsonFunc(jsonSDP);
+    _sendJsonFunc(id, jsonSDP);
   }
 
-  function sendIceCandidate(candidate) {
+  function sendIceCandidate(id, candidate) {
     console.log('---sending ICE candidate ---');
     const obj = { type: 'candidate', ice: candidate };
     //sendJson(obj);
-    _sendJsonFunc(obj);
+    _sendJsonFunc(id, obj);
   }
