@@ -26,7 +26,8 @@ module.exports =
     //headlessFullpath: '/usr/bin/chromium-browser', // for ubuntu + chromium
     //headlessFullpath: '/usr/bin/google-chrome-stable', // for ubuntu + chrome
 
-    headlessArgs: ['--headless',  '--disable-gpu',  '--remote-debugging-port=9222'], // With Debug port
+    //headlessArgs: ['--headless',  '--disable-gpu',  '--remote-debugging-port=9222'], // With Debug port, for Chrome 60
+    headlessArgs: ['--headless',  '--remote-debugging-port=9222'], // With Debug port, for Chrome 61
     //headlessArgs: ['--disable-gpu',  '--remote-debugging-port=9222'], // NOT headless
 
     headlessUrlSingle: 'single_mcu.html',
