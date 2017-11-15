@@ -150,7 +150,12 @@ let _updateUIFunc = null; // update UI callback
         let stream = event.stream;
         _logStream('remotestream of onaddstream()', stream);
         
-        _addRemoteVideoFunc(stream.id, stream);
+        if (_addRemoteVideoFunc) {
+          _addRemoteVideoFunc(stream.id, stream);
+        }
+        else {
+          console.warn('NO Func to handle onaddstream()');
+        }
       };
     }
     else if ('ontrack' in peer) {
@@ -159,9 +164,13 @@ let _updateUIFunc = null; // update UI callback
         let stream = event.streams[0];
         _logStream('remotestream of ontrack()', stream);
         if ( (stream.getVideoTracks().length > 0) && (stream.getAudioTracks().length > 0) ) {
-          _addRemoteVideoFunc(stream.id, stream);
+          if (_addRemoteVideoFunc) {
+            _addRemoteVideoFunc(stream.id, stream);
+          }
+          else {
+            console.warn('NO Func to handle ontrack()');
+          }
         }
-        
       };
     }
     else {
@@ -229,7 +238,12 @@ let _updateUIFunc = null; // update UI callback
     peer.onremovestream = function(event) {
       console.log('-- peer.onremovestream()');
       let stream = event.stream;
-      _removeRemoteVideoFunc(stream.id, stream);
+      if (_removeRemoteVideoFunc) {
+        _removeRemoteVideoFunc(stream.id, stream);
+      }
+      else {
+        console.warn('NO Func to handle onremovestream()');
+      }
     };
     
     
@@ -315,7 +329,23 @@ let _updateUIFunc = null; // update UI callback
       addConnection(id, peerConnection);
     }
 
-    peerConnection.createOffer()
+    // for receive only,  send only too
+    let options = {};
+    if (isSendOnly()) {
+      options = { offerToReceiveAudio: false, offerToReceiveVideo: false };
+    }
+    else if (isRecvOnly()) {
+      options = { offerToReceiveAudio: true, offerToReceiveVideo: true };
+
+      // -- for safari --
+      if ('addTransceiver' in peerConnection) {
+        console.log('-- use addTransceiver() for recvonly --');
+        peerConnection.addTransceiver('video').setDirection('recvonly');
+        peerConnection.addTransceiver('audio').setDirection('recvonly');
+      }
+    }
+
+    peerConnection.createOffer(options)
     .then(function (sessionDescription) {
       console.log('createOffer() succsess in promise');
 
@@ -350,7 +380,18 @@ let _updateUIFunc = null; // update UI callback
       console.error('peerConnection NOT exist!');
       return;
     }
-    
+
+    let options = {};
+    if (! isRecvOnly()) {
+      //options = { offerToReceiveAudio: true, offerToReceiveVideo: true }
+
+      if ('addTransceiver' in peerConnection) {
+        console.log('-- use addTransceiver() for recvonly --');
+        peerConnection.addTransceiver('video').setDirection('recvonly');
+        peerConnection.addTransceiver('audio').setDirection('recvonly');
+      }
+    }
+
     peerConnection.createAnswer()
     .then(function (sessionDescription) {
       console.log('createAnswer() succsess in promise');
@@ -391,6 +432,23 @@ let _updateUIFunc = null; // update UI callback
     }
   }
 
+  function isSendOnly() {
+    if (! _addRemoteVideoFunc) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  function isRecvOnly() {
+    if (! getLocalStream()) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
 
   // ----- band width -----
   // for chrome
