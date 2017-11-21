@@ -28,6 +28,7 @@
 
 ```
 git clone --recursive https://github.com/mganeko/browser_mcu_server.git
+cd browser_mcu_server
 npm install
 ```
 
