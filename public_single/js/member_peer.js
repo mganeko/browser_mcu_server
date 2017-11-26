@@ -12,8 +12,10 @@ let _addRemoteVideoFunc = null;
 let _removeRemoteVideoFunc = null;
 let _disconnectFunc = null; // function to handle ice disconnect event
 let _updateUIFunc = null; // update UI callback
+let _videoBandwidth = 512; // kbps
+let _audioBandwidth = 64;  // kpbs
 
-  // --- outer objenct and functions ---
+  // --- outer object and functions ---
   function setLocalStream(stream) {
     _localStream = stream;
   }
@@ -41,6 +43,11 @@ let _updateUIFunc = null; // update UI callback
 
   function setUpdateUIFunc(func) {
     _updateUIFunc = func;
+  }
+
+  function setBandwidth(videoBw, audioBw) {
+    _videoBandwidth = videoBw;
+    _audioBandwidth = audioBw;
   }
 
   // --- log state
@@ -350,9 +357,9 @@ let _updateUIFunc = null; // update UI callback
       console.log('createOffer() succsess in promise');
 
       // -- limit bandwidth --
-      const audioBand = 64; // kbps
-      const videoBand = 512; // kbps
-      let sdpLimit = setBandwidth(sessionDescription.sdp, audioBand, videoBand);
+      const audioBand = _audioBandwidth; // kbps
+      const videoBand = _videoBandwidth; // kbps
+      let sdpLimit = _setBandwidthInSDP(sessionDescription.sdp, audioBand, videoBand);
       sessionDescription.sdp = sdpLimit;
 
       return peerConnection.setLocalDescription(sessionDescription);
@@ -397,9 +404,9 @@ let _updateUIFunc = null; // update UI callback
       console.log('createAnswer() succsess in promise');
 
       // -- limit bandwidth --
-      const audioBand = 64; // kbps
-      const videoBand = 512; // kbps
-      let sdpLimit = setBandwidth(sessionDescription.sdp, audioBand, videoBand);
+      const audioBand = _audioBandwidth; // kbps
+      const videoBand = _videoBandwidth; // kbps
+      let sdpLimit = _setBandwidthInSDP(sessionDescription.sdp, audioBand, videoBand);
       sessionDescription.sdp = sdpLimit;
 
       return peerConnection.setLocalDescription(sessionDescription);
@@ -454,7 +461,7 @@ let _updateUIFunc = null; // update UI callback
   // for chrome
   //audioBandwidth = 50; // kbps
   //videoBandwidth = 256; // kbps
-  function setBandwidth(sdp, audioBandwidth, videoBandwidth) {
+  function _setBandwidthInSDP(sdp, audioBandwidth, videoBandwidth) {
     let sdpNew = sdp.replace(/a=mid:audio\r\n/g, 'a=mid:audio\r\nb=AS:' + audioBandwidth + '\r\n');
     sdpNew = sdpNew.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + videoBandwidth + '\r\n');
 
